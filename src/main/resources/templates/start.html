@@ -1,0 +1,336 @@
+﻿<!DOCTYPE html>
+<html lang="zh-cn">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <style type="text/css">
+      body {  
+        padding-top: 50px
+      }
+    </style>
+
+    <title>基于Docker的冒烟环境...</title>
+
+    <script th:src="@{/js/jquery-3.2.1.min.js}"></script>
+    <script th:src="@{/js/bootstrap.js}"></script>
+    <script th:src="@{/bootstrapdialog/js/bootstrap-dialog.min.js}"></script>
+    <script th:src="@{/dataTables/js/jquery.dataTables.js}"></script>
+    
+    <link rel="shortcut icon" th:href="@{/ecp/ecp.png}">
+    <link rel="stylesheet" th:href="@{/dataTables/css/jquery.dataTables.css}" >
+    <link rel="stylesheet" th:href="@{/bootstrapdialog/css/bootstrap-dialog.min.css}">
+    <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}"/>
+
+    <script type="text/javascript">
+        var imageID;
+        var imageName;
+		var entrypoint;
+		var ips;
+		
+		var params = window.location.href.split("?");	
+		if (params.length == 2) {
+            	params = params[1];
+            	params = params.split("&");
+            	imageID   = params[0].split("id=")[1];
+            	imageName = params[1].split("name=")[1];
+        }
+      
+      $(document).ready(function() {
+      	$("#nav").load("nav.html");
+		$("#imageName").val(imageName);
+		$("#run").click(run);
+		
+		$("input[name=radio]").click(function(e){
+			if (e.target.value == "0") {
+				$("#dsDiv").hide();
+			} else {
+				$("#dsDiv").show();
+			}
+		});
+		
+		$("input[name=radioPortMapping]").click(function(e){
+			if (e.target.value == "0") {
+				$("div[name=allMappingName]").hide();
+				$("div[name=DivPortAutoComplete]").hide();
+			} else {
+				$("div[name=allMappingName]").show();
+				$("div[name=DivPortAutoComplete]").show();
+			}
+		});
+		$("div[name=DivPortAutoComplete]").hide();
+		
+		$("#dsLabelDiv").hide();
+		
+		var serverLists = $.ajax({url: "/serverList", async: false}).responseJSON;
+		var servers = serverLists.data;
+		$.each(servers, function(key, server){
+		  var s = server.ipAddress + ":" + server.port;
+		  var option = '<option id="' + s + '">' + s + '</option>';
+		  $("#serverSelect").append(option);
+		})
+		
+		
+		var pullResult = $.ajax({url: "/docker/pullImage", async: false, data:{"host":"127.0.0.1:2375", "image": imageID}}).responseJSON;
+		if (!pullResult || pullResult.retMsg != "success") {
+		  BootstrapDialog.alert(imageID + " 镜像下载失败");
+		  $("#run").hide();
+		  return;
+        }
+        var downloadImageId = pullResult.image;
+        
+		$.ajax({
+          type: "GET",
+          url: "/docker/inspectImage",
+          data: {"host":"127.0.0.1:2375", "image": downloadImageId},
+          dataType: "json",
+          success: function(json){
+            //端口映射
+            if (json.result.Config.ExposedPorts) {
+              $.each(
+                json.result.Config.ExposedPorts, 
+                function(key, value) {
+                  //没有值就别处理了
+                  if (!key) {
+                    $("#DivPortMapping").hide();
+                    return;
+                  };
+                    var clone = $("#DivPortMapping").clone();
+                    clone.attr({"name": "allMappingName", "id": "DivPortMapping" + key});
+                    clone.find("input").attr({"name": "port" + key, "id": key, "placeHolder": "port for " + key});
+                    $("#DivPortMapping").after(clone);
+                    clone.hide();
+                }
+              );
+            }
+            $("#DivPortMapping").remove();
+            $inputMappings = $("div[name='allMappingName']").find("input[type='text']");
+            $inputMappings.eq(0).keyup(function(event){
+                port = $(this).val();
+                autoPort = $("input[name='autoPort']:checked").val();
+                if (port) {
+                    if (port.length == 4) {
+                        if (autoPort == 0) {
+                            //退格键
+                            if (event.keyCode == 8) {
+                                $.each($inputMappings, function(i, inputmapping) {
+                                    $(inputmapping).val(port);
+                                }); 
+                            } else {
+                                $.each($inputMappings, function(i, inputmapping) {
+                                    $(inputmapping).val(port * 10 + (i + 1));
+                                }); 
+                            }
+                        }
+                    }
+                } else {
+                    $.each($inputMappings, function(i, inputmapping) {
+                        $(inputmapping).val("");
+                    });
+                }
+            });
+            $inputMappings.eq(0).dblclick(function() {
+                $.each($inputMappings, function(i, inputmapping) {
+                    $(inputmapping).val("");
+                });
+            })
+            if (json.result.Config.Entrypoint) {
+                entrypoint = json.result.Config.Entrypoint;
+            }
+          }
+        });
+      });
+      
+      //registry v2目前不支持inspect镜像，因此进入页面时已经拉了镜像，并且docker inspect里本地镜像,这里不再拉镜像.
+      //pull image, create container, and run.
+      //let server to it!
+      function run() {
+		if(imageID == null){
+			myAlert('请选择镜像.');
+			return
+		}
+		var containerName = $("#containerName").val();
+		if("" == containerName) {
+			myAlert('请输入容器名称.');
+			return
+		}
+		
+		var regEx = /^[a-zA-Z0-9][a-zA-Z0-9_.-]+$/;
+		if(!regEx.test(containerName)) {
+			myAlert('容器名称必须和' + regEx + '匹配.');
+			return
+		}
+		
+		$("#run").hide();
+		$("#hr").hide();
+		$(window).scrollTop(0);
+		$("#progress").show();
+		justRun();
+      }
+    
+    function justRun() {
+        var createURL = "/docker/createContainer";
+        	doCreate(createURL);
+    }   
+    
+	function doCreate(createURL) {
+	   var ccb = {};
+	   ccb.imageName = imageName;
+	   //entrypoint = encodeURIComponent(entrypoint)
+	   ccb.serverSelect = $("#serverSelect").val();
+	   ccb.containerName = $("#containerName").val();
+	   ccb.command = $("#command").val();
+	   ccb.entrypoint = entrypoint;
+	   var portMappings = {};
+	   ccb.portMappings = portMappings;
+	   var $ports = $("form input[name^='port']")
+       $.each($ports, function(k, v) {
+           portMappings[v.name] = v.value;
+       });
+    	   $.ajax({
+			type: "POST",
+			contentType:"application/json;charset=utf-8",
+            	url: createURL,
+            	dataType: "json",
+            	data: JSON.stringify(ccb),
+            	success: function(json){
+            		if (json && json.retMsg == "success") {
+    	        		$("#progress-bar").css({ width: "90%"});
+    	        		     doStart(json.id);
+            		} else {
+            			myAlert(json.retMsg);
+            		}
+            	},
+            	error: function(response){
+            		myAlert(response.responseText);
+            	}
+		});
+    }
+    
+    function doStart(containerId) {
+    	   $.ajax({
+			type: "GET",
+            	url: '/docker/startContainer?containerId=' + containerId + '&host=' + $("#serverSelect").val(),
+            	dataType: "text",
+            	success: function(msg){
+            		if (msg == "success") {
+            		      myAlert("启动成功!");
+        	        		$("#progress-bar").css({ width: "100%"});
+        	        		window.location.href = "containerslist.html?ipandport=" + $("#serverSelect").val();
+            		} else {
+            			myAlert(msg);
+            		}
+            	},
+            	error: function(response){
+            		myAlert(response.responseText);
+            	}
+		});
+    }
+      
+	function myAlert(msg){
+    	   BootstrapDialog.show({
+            title: '错误提示',
+            closable: false,
+            message: msg,
+            buttons:[{
+				label:"关闭",
+				action:function(selfDialog){
+					selfDialog.close();
+					datatable.DataTable().ajax.reload(); 
+				}
+			}]
+		}); 
+	}
+    </script>
+  </head>
+
+  <body>
+    <div id="nav">
+	</div>
+    <div class="container">
+      <div>
+        <h1>运行</h1>
+        <hr id="hr"></hr>
+        <div id="progress" class="progress progress-striped active" style="display:none;">
+		  <div id="progress-bar" class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="40" aria-valuemin="0" aria-valuemax="100" style="width: 20%;">
+		    <span class="sr-only">20% Complete (success)</span>
+		  </div>
+		</div>
+      </div>
+    </div>
+    
+    <form class="container form-horizontal" role="form">
+      <div class="form-group">
+        <label for="imageName" class="col-sm-2 control-label">镜    像</label>
+        <div class="col-sm-10">
+          <input type="text" class="form-control" id="imageName" name="imageName" placeholder="如 gris_plus4.0_ecp3.6" readonly="readonly">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="serverSelect" class="col-sm-2 control-label">服务器</label>
+        <div class="col-sm-10">
+          <select class="form-control" id="serverSelect" name="serverSelect">
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="containerName" class="col-sm-2 control-label">名    称</label>
+        <div class="col-sm-10">
+          <input type="text" class="form-control" id="containerName" name="containerName" placeholder="为运行的容器命名">
+        </div>
+      </div>
+      <div class="form-group" id="DivCommand">
+        <label for="command" class="col-sm-2 control-label">命    令</label>
+        <div class="col-sm-10">
+          <input type="text" class="form-control" id="command" name="command" placeholder="/bin/bash">
+        </div>
+      </div>
+      <div class="form-group" id="divPortMappingRadio">
+        <label for="command" class="col-sm-2 control-label">端口</label>
+        <div class="col-sm-10">
+          <div class="input-group">
+		      <span class="input-group-addon">
+		        <input type="radio" name="radioPortMapping" aria-label="..." value="0" CHECKED>
+		      </span>
+		      <input type="text" class="form-control" aria-label="..." readonly="readonly" value="动态分配">
+		      <span class="input-group-addon">
+		        <input type="radio" name="radioPortMapping" aria-label="..." value="1">
+		      </span>
+		      <input type="text" class="form-control" aria-label="..." readonly="readonly" value="自定义">
+		  </div>
+        </div>
+      </div>
+      <div class="form-group" name="DivPortAutoComplete">
+        <label for="command" class="col-sm-2 control-label">端口自动补全</label>
+        <div class="col-sm-10">
+          <div class="input-group">
+		      <span class="input-group-addon">
+		        <input type="radio" name="autoPort" aria-label="..." value="0" CHECKED>
+		      </span>
+		      <input type="text" class="form-control" aria-label="..." readonly="readonly" value="自动">
+		      <span class="input-group-addon">
+		        <input type="radio" name="autoPort" aria-label="..." value="1">
+		      </span>
+		      <input type="text" class="form-control" aria-label="..." readonly="readonly" value="不自动">
+		  </div>
+        </div>
+      </div>
+      <div class="form-group" id="DivPortMapping">
+        <label for="portMapping" class="col-sm-2 control-label">端口映射</label>
+        <div class="col-sm-10">
+          <input type="text" class="form-control" id="portMapping" placeholder="-p 2222:22 -p 7001:7001">
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="col-sm-offset-2 col-sm-10">
+          <a class="btn btn-success" href="javascript:void(0);" id="run">
+          	<i class="glyphicon glyphicon-play icon-white"></i>&nbsp;运行
+          </a>
+        </div>
+      </div>
+    </form>
+  </body>
+</html>

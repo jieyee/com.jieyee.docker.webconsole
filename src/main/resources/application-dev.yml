@@ -1,0 +1,64 @@
+server:
+ port: 8090
+ session:
+  timeout: 36000
+spring:
+ devtools:
+  restart:
+   exclude: static/**
+   enabled: true
+ thymeleaf:
+  cache: false
+  mode: LEGACYHTML5
+ datasource:
+  type: com.alibaba.druid.pool.DruidDataSource
+  url: jdbc:mysql://localhost:3306/bright-sms?useUnicode=true&characterEncoding=utf8
+  driverClassName: com.mysql.jdbc.Driver
+  username: root
+  password:
+  druid:
+   stat-view-servlet:
+    enabled: true
+    url-pattern: /druid/*
+    reset-enable: false
+    login-username: druid
+    login-password: druid
+   web-stat-filter:
+    enabled: true
+    url-pattern: /*
+    exclusions: '*.js,*.gif,*.jpg,*.bmp,*.png,*.css,*.ico,/druid/*'
+ jackson:
+  serialization:
+    FAIL_ON_EMPTY_BEANS: false
+
+#admin ui client 注册
+spring.boot.admin.url: http://localhost:8888/monitor
+endpoints.shutdown.enabled: true
+management: 
+  port: 9999
+  context-path: "/manageActuator"
+  security: 
+    enabled: false
+    
+platform.oauth.tokenTimeout: 3600
+platform.oauth.in.memory.clientId: admin 
+platform.oauth.in.memory.password: lsh.0904 
+
+platform.registry: 127.0.0.1:5000
+platform.dockerpath: /usr/local/bin/docker -H
+
+projectMap:
+ sms-web: /root/docker/webconsole/deploy/sms-web/deploy.sh
+ sms-api: /root/docker/webconsole/deploy/sms-api/deploy.sh
+ oms-web: /root/docker/webconsole/deploy/oms-web/deploy.sh
+ oms-api: /root/docker/webconsole/deploy/oms-api/deploy.sh
+ dingding: /root/docker/webconsole/deploy/dingding/deploy.sh
+ budget: /root/docker/webconsole/deploy/budget/deploy.sh
+ scm-boss: /root/docker/webconsole/deploy/scm-boss/deploy.sh
+ 
+serverList:  
+ - ipAddress: 127.0.0.1
+   port: 2375
+   description: 测试服
+   links:
+

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="">
+<meta name="author" content="">
+<meta http-equiv="refresh" content="60">
+
+<style type="text/css">
+body {
+	padding-top: 50px
+}
+</style>
+
+<title>基于Docker的冒烟环境...</title>
+
+<script th:src="@{/js/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/bootstrap.js}"></script>
+<script th:src="@{/bootstrapdialog/js/bootstrap-dialog.min.js}"></script>
+<script th:src="@{/dataTables/js/jquery.dataTables.js}"></script>
+
+<link rel="shortcut icon" th:href="@{/ecp/ecp.png}">
+<link rel="stylesheet" th:href="@{/dataTables/css/jquery.dataTables.css}" >
+<link rel="stylesheet" th:href="@{/bootstrapdialog/css/bootstrap-dialog.min.css}">
+<link rel="stylesheet" th:href="@{/css/bootstrap.min.css}"/>
+
+<script type="text/javascript">
+    $(document).ready(function() {
+    	$("#nav").load("nav.html");
+    	
+		$('#example').dataTable({
+			"language": {
+				url: 'dataTables/i18n/zh_CN.txt'
+	        },
+	        "columns": [
+	            { "data": "ipAddress", defaultContent: '&nbsp'},
+	            { "data": "port", defaultContent: '&nbsp'},
+	            { "data": "description", defaultContent: '&nbsp'},
+	            { "data": "links", defaultContent: '&nbsp'}
+        	],
+        	"columnDefs": [
+        	     {
+				targets: 0,
+				render: function (data, type, row) {					
+					return '<span>' + row.ipAddress + '</span>';
+	           }
+	         },{
+				targets: 3,
+				render: function (data, type, row) {
+					var ret =   '<div ><a class="btn btn-success" href="containerslist.html?ipandport='+ row.ipAddress+':' + row.port +'" >' 
+                               + '<i class="glyphicon glyphicon-zoom-in icon-white"></i>&nbsp;容器</a>&nbsp;'
+                               + '<a class="btn btn-info" href="hostimagelist.html?ipandport='+ row.ipAddress+':' + row.port +'" >'
+                               + '<i class="glyphicon glyphicon-zoom-in icon-white"></i>&nbsp;镜像</a>&nbsp;'
+					return ret
+	           }
+	         }],
+	         "ajax": "/serverList"
+		});
+    });
+</script>
+</head>
+
+<body>
+	<div id="nav">
+	</div>
+	<div class="container">
+		<div>
+			<h1>服务器</h1>
+		</div>
+	</div>
+
+	<div class="container">
+		<table id="example" class="display" cellspacing="0" width="100%">
+			<thead>
+				<tr>
+					<th>服务器</th>
+					<th>端口</th>
+					<th>描述</th>
+					<th>管理</th>
+				</tr>
+			</thead>
+			<tbody>
+			 <tr>
+			     <td>127.0.0.1</td>
+			     <td>2375</td>
+			     <td>测试服</td>
+			     <td>&nbsp;</td>
+			 </tr>
+			</tbody>
+			<tfoot>
+				<tr>
+					<th>服务器</th>
+					<th>端口</th>
+					<th>描述</th>
+					<th>管理</th>
+				</tr>
+			</tfoot>
+		</table>
+	</div>
+</body>
+</html>

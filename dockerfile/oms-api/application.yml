@@ -1,0 +1,34 @@
+server:
+ port: 9210
+ context-path: /oms-api
+
+spring:
+ devtools:
+  restart:
+   exclude: static/**
+   enabled: true
+ datasource:
+  type: com.alibaba.druid.pool.DruidDataSource
+  url: jdbc:mysql://172.168.20.8:3306/bright-oms?useUnicode=true&characterEncoding=utf8
+  driverClassName: com.mysql.jdbc.Driver
+  username: root
+  password: '@qi8jb#1'
+ redis:
+  host: localhost
+  port: 6379
+  password: lsh0904 
+  timeout: 10000
+api:
+  list:
+   - appId: userCenter
+     url: http://dingding.platform.liangshenghuo.cn/
+     credential: client:oauthchuangmjclient
+     grantType: client_credentials
+   - appId: sms-api
+     url: http://172.168.20.8:9120/
+     credential: client:client
+     grantType: client_credentials
+   - appId: oss-client
+     url: http://oss.platform.liangshenghuo.cn/
+     credential: client:oauthchuangmjclient
+     grantType: client_credentials

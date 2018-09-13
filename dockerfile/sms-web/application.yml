@@ -1,0 +1,79 @@
+server:
+ port: 9180
+ context-path: /sms-web
+management:
+ port: 9181
+endpoints:
+ metrics:
+
+spring:
+ devtools:
+  restart:
+   exclude: static/**
+   enabled: true
+ thymeleaf:
+  cache: false
+  mode: LEGACYHTML5
+ datasource:
+  type: com.alibaba.druid.pool.DruidDataSource
+  url: jdbc:mysql://172.168.20.8:3306/bright-sms?useUnicode=true&characterEncoding=utf8
+  driverClassName: com.mysql.jdbc.Driver
+  username: root
+  password: '@qi8jb#1'
+  druid:
+   stat-view-servlet:
+    enabled: true
+    url-pattern: /druid/*
+    reset-enable: false
+    login-username: druid
+    login-password: druid
+   web-stat-filter:
+    enabled: true
+    url-pattern: /*
+    exclusions: '*.js,*.gif,*.jpg,*.bmp,*.png,*.css,*.ico,/druid/*'
+ jackson:
+  serialization:
+    FAIL_ON_EMPTY_BEANS: false
+ messages:
+  basename: message/base
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: lsh0904 
+  timeout: 10000
+
+mybatis:
+  mapperLocations: classpath:/mapper/*Mapper.xml
+
+pagehelper:
+  helperDialect: mysql
+  reasonable: true
+  supportMethodsArguments: true
+  params: count=countSql
+
+##
+dingtalk:
+  corpid: dinga2b261ac9130e7ee35c2f4657eb6378f
+  corpsecret: zK3sh6TfRpsK4v15pJbZrsf_onuLCtdsTliLRW3ySsvcKRqd4IJ21bqFtxnAaobJ
+
+
+logging:
+ level:
+  root: info
+  com.bright.sms.mapper: trace
+  org.springframework.security: debug
+  DING_OPEN_CLIENT_SDK_LOGGER: warn
+
+user:
+ details:
+  sql:
+   userQuery: select phone as username,passwd as password,enabled as enabled from sys_user where phone = ?
+   authoritiesQuery: SELECT DISTINCT su. NAME AS username , sa.role AS authority FROM sys_user_group AS sug JOIN sys_group_authority AS sga ON sug.group_id = sga.group_id JOIN sys_authority AS sa ON sga.authority_id = sa.id JOIN sys_group AS sg ON sga.group_id = sg.id JOIN sys_user AS su ON su.id = sug.user_id WHERE su.phone = ? AND sg.enabled = 1
+
+
+api:
+  list:
+   - appId: userCenter
+     url: http://172.168.20.8:8090/
+     credential: Y2xpZW50Om9hdXRoY2h1YW5nbWpjbGllbnQ=
+     grantType: client_credentials

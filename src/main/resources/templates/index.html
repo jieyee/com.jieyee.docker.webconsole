@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="">
+<meta name="author" content="">
+
+<style type="text/css">
+body {
+    padding-top: 50px
+}
+</style>
+
+<title>基于Docker的冒烟环境...</title>
+
+
+<script th:src="@{/js/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/bootstrap.js}"></script>
+<script th:src="@{/bootstrapdialog/js/bootstrap-dialog.min.js}"></script>
+<script th:src="@{/dataTables/js/jquery.dataTables.js}"></script>
+
+<link rel="shortcut icon" th:href="@{/ecp/ecp.png}">
+<link rel="stylesheet" th:href="@{/dataTables/css/jquery.dataTables.css}" >
+<link rel="stylesheet" th:href="@{/bootstrapdialog/css/bootstrap-dialog.min.css}">
+<link rel="stylesheet" th:href="@{/css/bootstrap.min.css}"/>
+
+<script type="text/javascript">
+    $(document).ready(function() {
+        $("#nav").load("nav.html");
+        $('#example').dataTable({
+            "language": {
+                url: 'dataTables/i18n/zh_CN.txt'
+            },
+            "columnDefs": [{
+                targets: 2,
+                render: function (data, type, row) {
+                   return '<div ><a class="btn btn-success" href="javascript:;" onclick="detailRepo(\'' + row[0] + '\');">' 
+                   + '<i class="glyphicon glyphicon-zoom-in icon-white"></i>&nbsp;详细</a>&nbsp;'
+                   + '<a class="btn btn-danger" href="javascript:;" onclick="deleteRepo(\'' + row[0] + '\');">'
+                   + '<i class="glyphicon glyphicon-trash icon-white"></i>&nbsp;删除</a></div>'
+               }
+            }],
+            "ajax": "/registry/listRegistryImages"
+        });
+    });
+    
+    function detailRepo(repo) {
+        window.location.href = "/registryImageTags.html?repo=" + repo;
+    }
+    
+    function deleteRepo(name) {
+        BootstrapDialog.show({
+            title: '提示',
+            type: BootstrapDialog.TYPE_WARNING,
+            message: '要删除整个镜像库' + name + '吗?',
+            buttons: [{
+                label: '确定',
+                cssClass: 'btn-warning',
+                action: function(dialog) {
+                    dialog.close();
+                    $.ajax({
+                        type: "GET",
+                        url: '/dockerwebconsole/RegistryServlet?action=deleteRegistryImage&name='+ name,
+                        dataType: "text",
+                        data: $("form").serialize(),
+                        success: function(msg){
+                            if ("OK" == msg) {
+                                window.location.reload();
+                            }
+                            BootstrapDialog.show({
+                                title: '提示',
+                                message: msg
+                            });
+                        },
+                        error: function(response){
+                            BootstrapDialog.show({
+                                title: '错误提示',
+                                message: response.responseText
+                            }); 
+                        }
+                    });
+                    
+                }
+            }, {
+                label: '取消',
+                cssClass: 'btn-warning',
+                action: function(dialog) {
+                    dialog.close();
+                }
+            }]
+        });
+    }
+</script>
+</head>
+
+<body>
+    <div id="nav">
+    </div>
+    <div class="container">
+        <div>
+            <h1>镜像仓库</h1>
+        </div>
+    </div>
+
+    <div class="container">
+        <table id="example" class="display" cellspacing="0" width="100%">
+            <thead>
+                <tr>
+                    <th>名称</th>
+                    <th>描述</th>
+                    <th>操作</th>                 
+                </tr>
+            </thead>
+            
+            <tfoot>
+                <tr>
+                    <th>名称</th>
+                    <th>描述</th>
+                    <th>操作</th>                     
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</body>

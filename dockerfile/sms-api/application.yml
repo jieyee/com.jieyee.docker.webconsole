@@ -1,0 +1,45 @@
+server:
+ port: 9120
+ #contextPath: /sms-api
+
+spring:
+ devtools:
+  restart:
+   exclude: static/**
+   enabled: true
+ thymeleaf:
+  cache: false
+  mode: LEGACYHTML5
+ datasource:
+  type: com.alibaba.druid.pool.DruidDataSource
+  url: jdbc:mysql://172.168.20.8:3306/bright-sms?useUnicode=true&characterEncoding=utf8&useSSL=false
+  driverClassName: com.mysql.jdbc.Driver
+  username: root
+  password: '@qi8jb#1'
+ redis:
+  host: 127.0.0.1
+  port: 6379
+  password: lsh0904
+  timeout: 10000
+  pool:
+    max-idle: 20
+    min-idle: 5
+    max-active: 20
+    max-wait: 2
+
+logging:
+ level:
+  root: info
+  com.bright.sms.apis.mapper: trace
+  org.springframework.security: debug
+  #org.springframework: debug
+
+user:
+ details:
+  sql:
+   userQuery: select phone as username,passwd as password,enabled as enabled from sys_user where phone = ?
+   authoritiesQuery: SELECT DISTINCT su. NAME AS username , sa.role AS authority FROM sys_user_group AS sug JOIN sys_group_authority AS sga ON sug.group_id = sga.group_id JOIN sys_authority AS sa ON sga.authority_id = sa.id JOIN sys_group AS sg ON sga.group_id = sg.id JOIN sys_user AS su ON su.id = sug.user_id WHERE su.phone = ? AND sg.enabled = 1
+
+
+mybatis:
+  mapperLocations: classpath:/mapper/*Mapper.xml

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="">
+<meta name="author" content="">
+
+<style type="text/css">
+body {
+	padding-top: 50px
+}
+
+    .login-dialog .modal-dialog {
+        width: 300px;
+    }
+</style>
+
+<title>容器服务列表</title>
+
+<script th:src="@{/js/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/bootstrap.js}"></script>
+<script th:src="@{/bootstrapdialog/js/bootstrap-dialog.min.js}"></script>
+<script th:src="@{/dataTables/js/jquery.dataTables.js}"></script>
+
+<link rel="shortcut icon" th:href="@{/ecp/ecp.png}">
+<link rel="stylesheet" th:href="@{/dataTables/css/jquery.dataTables.css}" >
+<link rel="stylesheet" th:href="@{/bootstrapdialog/css/bootstrap-dialog.min.css}">
+<link rel="stylesheet" th:href="@{/css/bootstrap.min.css}"/>
+
+<script type="text/javascript">
+    var datatable;
+    (function ($) {
+    $.getUrlParam = function (name) {
+        var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
+        var r = window.location.search.substr(1).match(reg);
+        if (r != null) return unescape(r[2]); return null;
+    }
+    })(jQuery);
+    $(document).ready(function() {
+    	$("#nav").load("nav.html");
+    	$("#pagename").html($.getUrlParam('ipandport')+'镜像列表');
+    	
+    	datatable =  $('#example').dataTable({
+    		'bStateSave': true,
+    	  "language": {
+				url: 'dataTables/i18n/zh_CN.txt'
+	        },
+    	  columns: [
+                    {data: 'Names', defaultContent: '&nbsp'},
+                    {data: 'Tag', defaultContent: '&nbsp'},
+                    {data: 'Created', defaultContent: '&nbsp'},
+                    {data: 'VirtualSize', defaultContent: '&nbsp'}
+                   ],
+                   fnRowCallback : function(nRow, aData, iDisplayIndex) {
+                  		$(nRow).attr('id',aData.Id); 
+                      },
+       "columnDefs": [{
+        	  targets: 0,
+              render: function (data, type, row) {
+              return row.Names;
+              }  
+          },{
+              targets: 4,
+               render: function (data, type, row) {
+                //row.Id = "sha256:58776805aa525f26e04fbe659983703f1e28139e5e0285d11d6e6411575426e8"
+                var id = row.Id;
+                if (row.Id.indexOf("sha256") != -1) {
+                    id = id.substr(7)
+                }
+            	    var delRowLine = '<a class="btn btn-danger" href="#" onclick="deleteImage(\'' + id + '\',\''+row.Names +'\',\''+row.Tag+'\', this);">'
+	            var $str = '<div>'
+	                        + delRowLine
+	                        + '<i class="glyphicon glyphicon-trash icon-white"></i>删除</a>&nbsp;'
+							+ '<a class="btn btn-primary" href="javascript:;" onclick="tagRepo(\'' + row.Id + '\',\''+row.Names +'\',\''+row.Tag+'\');">'
+							+ '<i class="glyphicon glyphicon-tag icon-white"></i>&nbsp;Tag</a></div>';
+	              return $str;
+              }           
+          }
+        ],
+        "ajax": "/docker/listImages?host=" + $.getUrlParam('ipandport')
+      });
+    	//选择要删除的容器
+    	$('#example tbody').on( 'click', 'tr', function () {    		
+    		$(this).toggleClass('selected');
+        } );
+    });
+    
+    //增加提示.    
+    function hintDialog() {
+        var dialog = BootstrapDialog.show({
+            type: BootstrapDialog.TYPE_WARNING, 
+            title: '提示',
+            closable: false,
+            message: '处理中...',
+            buttons: []
+        });
+        return dialog
+    }
+    
+    function alertResult(title,message) {
+    	   var dialog = new BootstrapDialog({
+			title:title,
+			message: message,
+			buttons:[{
+				label:"关闭",
+				action:function(selfDialog){
+					selfDialog.close();
+					datatable.DataTable().ajax.reload();
+				}
+			}]
+		}).open();
+    }
+    function deleteImage(id,name,tag, that){
+        var dialog = hintDialog();
+     	BootstrapDialog.show({
+    		//size: BootstrapDialog.SIZE_LARGE,
+    		type: BootstrapDialog.TYPE_WARNING, 
+    		title: '提示',
+            message: '是否要删除镜像'+name + ":" + tag,
+            buttons: [ {
+                label: '确定',
+				cssClass: 'btn-warning',
+                action: function(dialogItself){
+                    $.ajax({
+                        type: "GET",
+                        url: "/docker/deleteImage", 
+                        dataType: "text",
+                        data: { imageId: name + ":" + tag , host : $.getUrlParam('ipandport')},
+                        success: function(data){
+                            dialog.close();
+                            if(data.indexOf("success") != -1){
+                                datatable.DataTable().ajax.reload();
+                            } else {
+                                alertResult("执行结果", +name+'停止失败'+ data);
+                            }
+                        },
+                        error: function(response){
+                            dialog.close();
+                            BootstrapDialog.show({
+                                title: '错误提示',
+                                message: response.responseText
+                            }); 
+                        }
+                    });
+                    dialogItself.close();                   
+                }
+            },  {
+                label: '取消',
+                cssClass: 'btn-warning',
+                action: function(dialogItself){
+                    dialogItself.close();
+                }
+            }]
+        });
+    }
+   
+	function tagRepo(id, name, tag) {
+   		BootstrapDialog.show({
+            title: '请为' + name + ':' + tag + '<br>新增一个Tag',
+            message: $('<input id="newTag" name="newTag" type="text" class="form-control" placeholder="new Tag">'),
+            buttons: [{
+                label: '确定',
+                cssClass: 'btn-primary',
+                hotkey: 13, // Enter.
+                action: function(dialog) {
+                    dialog.close();
+                    var url = '/docker/tagImage?name=' + name + '&repo=' +  name + ":" + tag + '&newTag=' + $("#newTag").val() + '&host=' + $.getUrlParam('ipandport');
+                    $.ajax({
+						type: "POST",
+			         	url: url,
+			         	dataType: "text",
+			         	success: function(msg){
+			         		if ("success" == $.trim(msg)) {
+			          			datatable.DataTable().ajax.reload(); ;
+			         		}
+			         		BootstrapDialog.show({
+					            title: '提示',
+					            message: msg
+					        });
+			         	},
+			         	error: function(response){
+			         		BootstrapDialog.show({
+					            title: '错误提示',
+					            message: response.responseText
+					        }); 
+			         	}
+					});
+                }
+            },{
+                label: '取消',
+                cssClass: 'btn-primary',
+                action: function(dialog) {
+                    dialog.close();
+                }
+            }]
+        });
+   	}
+	function deleterows(){	
+		BootstrapDialog.show({
+    		//size: BootstrapDialog.SIZE_LARGE,
+    		type: BootstrapDialog.TYPE_WARNING, 
+    		title: '提示',
+            message: '确定要删除选中的'+datatable.DataTable().rows('.selected').data().length+'个镜像',
+            buttons: [ {
+                label: '确定',
+                cssClass: 'btn-warning',
+                action: function(dialogItself){                    
+                	var rows=datatable.DataTable().rows('.selected').data();
+                	var params = "";
+            		$(rows).each(function(){
+            			var param = this.Names + "@@@" + this.Tag;
+            			if ("" != params) {
+            				params += "~~~" + param;
+            			} else {
+            				params += param;
+            			}
+            		});
+           			$.post("/dockerwebconsole/HostImageListServlet", { url: "delete_image", params : params ,ipandport : $.getUrlParam('ipandport')},
+           				function(data){
+           					var datas = data.split("###");
+           					var message = "";
+           					for (var i =0; i < datas.length; i++) {
+           						var strs = datas[i].split("^^");
+           						var resultStr = (strs[1].trim() == "success")? "删除成功<br>":"没有正常删除"+strs[1].trim()+"<br>";
+           						message += strs[0] + resultStr;
+           					}
+           					alertResult("执行结果", message);
+           				});
+                    dialogItself.close();                   
+                }
+            },  {
+                label: '取消',
+                cssClass: 'btn-warning',
+                action: function(dialogItself){
+                    dialogItself.close();
+                }
+            }]
+        });
+	}
+	function allselect(){
+		if($('#all-select').text().trim()=="全选"){
+			datatable.find('tr').addClass('selected');	
+			$("#all-select").text("全不选");
+		}else{
+			datatable.find('tr').removeClass('selected');
+			$("#all-select").text("全选");
+		}
+		if(datatable.DataTable().rows('.selected').data().length>0){
+         	$('#remove-container').removeClass("disabled");
+         }else{
+         	$('#remove-container').addClass("disabled");
+         }
+	}
+	
+	function refreshTable() {
+	   datatable.DataTable().ajax.reload();
+	}
+</script>
+</head>
+
+<body>
+	<div id="nav">
+	</div>
+	<div class="container">
+		<div>
+			<h1 id="pagename"></h1>
+		</div>
+	</div>
+	<div class="container">
+		<table id="example" class="display" cellspacing="0" width="100%">	
+	      <thead>
+		<tr>
+        <th colspan="5" id="batch" style="text-align:right;">
+        	<div>
+        	<!--
+        <button id="remove-container" type="button" class="btn btn-danger disabled" onclick='deleterows();'>
+                                   删除选择的镜像
+        </button>
+        <button id="all-select" type="button" class="btn btn-danger" onclick='allselect();'>
+                               全选
+        </button>
+        -->
+        <button id="btnRefresh" type="button" class="btn btn-success" onclick='refreshTable();'>刷新</button>
+        	</div>
+         </th>
+    </tr>
+				<tr>
+					<th><span class="glyphicon glyphicon-th-list" ></span>名字</th>
+					<th><span class="glyphicon glyphicon-th-list" ></span>标签</th>
+					<th><span class="glyphicon glyphicon-export" ></span>创建时间</th>
+					<th><span class="glyphicon glyphicon-star" ></span>	虚拟Size</th>	
+					<th><span class="glyphicon glyphicon-edit" ></span>	操作</th>	
+				</tr>
+			</thead>
+			<tfoot>
+				<tr>
+					<th><span class="glyphicon glyphicon-th-list" ></span>名字</th>
+					<th><span class="glyphicon glyphicon-th-list" ></span>标签</th>
+					<th><span class="glyphicon glyphicon-export" ></span>创建时间</th>
+					<th><span class="glyphicon glyphicon-star" ></span>	虚拟Size</th>	
+					<th><span class="glyphicon glyphicon-edit" ></span>	操作</th>	
+				</tr>
+			</tfoot>
+		</table>
+	</div>
+</body>
+</html>

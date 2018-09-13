@@ -1,0 +1,307 @@
+﻿<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="">
+<meta name="author" content="">
+
+<style type="text/css">
+body {
+	padding-top: 50px
+}
+</style>
+
+<title>基于Docker的冒烟环境...</title>
+
+<script th:src="@{/js/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/bootstrap.js}"></script>
+<script th:src="@{/bootstrapdialog/js/bootstrap-dialog.min.js}"></script>
+<script th:src="@{/dataTables/js/jquery.dataTables.js}"></script>
+
+<link rel="shortcut icon" th:href="@{/ecp/ecp.png}">
+<link rel="stylesheet" th:href="@{/dataTables/css/jquery.dataTables.css}" >
+<link rel="stylesheet" th:href="@{/bootstrapdialog/css/bootstrap-dialog.min.css}">
+<link rel="stylesheet" th:href="@{/css/bootstrap.min.css}"/>
+
+<script type="text/javascript">
+	var datatable;
+    $(document).ready(function() {
+    	   $("#nav").load("nav.html");
+    	    	
+	    var repo = window.location.href.split("repo=")[1];
+	    datatable = $('#example').dataTable({
+			"language": {
+				url: 'dataTables/i18n/zh_CN.txt'
+	        },
+	        "columns": [
+	            { "data": "name", defaultContent: '&nbsp'},
+	            { "data": "tag", defaultContent: '&nbsp'},
+	            { "data": "action", defaultContent: '&nbsp'},
+        	],
+        	"columnDefs": [{
+				targets: 0,
+				render: function (data, type, row) {
+					return repo
+	           }
+	        },{
+				targets: 1,
+				render: function (data, type, row) {
+				    var imageWithTag = row.name + ":" + row.tag;
+					return "<a href='javascript:;' onclick='show(\"" + imageWithTag + "\");'>" + imageWithTag + "</a>"
+	           }
+	        },{
+				targets: 2,
+				render: function (data, type, row) {
+				    var imageWithTag = row.name + ":" + row.tag;
+					var ret = '<div><a class="btn btn-success" href="javascript:void(0);" onclick="startRepo(\'' + imageWithTag + '\',\'' + row.tag + '\');">'
+							+ '<i class="glyphicon glyphicon-play icon-white"></i>&nbsp;运行</a>&nbsp;'
+							+ '<a class="btn btn-danger" href="javascript:;" onclick="deleteRepo(\'' + row.tag + '\');">'
+							+ '<i class="glyphicon glyphicon-trash icon-white"></i>&nbsp;删除</a>&nbsp;'
+							+ '<a class="btn btn-primary" href="javascript:;" onclick="tagRepo(\'' + row.id + '\',\'' + row.tag + '\');">'
+							+ '<i class="glyphicon glyphicon-tag icon-white"></i>&nbsp;Tag</a></div>';
+					return ret;
+	           }
+	        }],
+        	"ajax": "/registry/listRegistryImageTags/" + repo,
+		});
+		 $('#example tbody').on('click', 'tr', function () {
+		    	$(this).toggleClass('selected');
+		    	if(datatable.DataTable().rows('.selected').data().length>0){
+		    		if (isAdminFlag == "1") {
+		   				$('#remove-container').removeClass("disabled");
+		    		}
+		   		}else{
+		   			$('#remove-container').addClass("disabled");
+		   		}
+		  });
+    });
+    
+    function alertResult(title,message) {
+    	var dialog = new BootstrapDialog({
+			title:title,
+			message: message,
+			buttons:[{
+				label:"关闭",
+				action:function(selfDialog){
+					selfDialog.close();
+					datatable.DataTable().ajax.reload(); ; 
+				}
+			}]
+		}).open();
+    }
+    
+    function show(id) {
+    	BootstrapDialog.show({
+            title: 'ID',
+            message: id
+        });
+    }
+    
+   	function startRepo(id, tag) {
+   		var repo = window.location.href.split("repo=")[1];
+   		window.location.href = "start.html?id=" + id + "&name="+ repo + ":" + tag;
+   	}
+   	
+   	function deleteRepo(tag) {
+   		var repo = window.location.href.split("repo=")[1];
+   		BootstrapDialog.show({
+            title: '提示',
+            type: BootstrapDialog.TYPE_WARNING,
+            message: '要删除镜像' + repo + ":" + tag +'吗?',
+            buttons: [{
+                label: '确定',
+                cssClass: 'btn-warning',
+                action: function(dialog) {
+                	dialog.close();
+					$.ajax({
+						type: "GET",
+			         	url: '/dockerwebconsole/RegistryServlet?action=deleteRegistryImageTag&name='+ repo + '&tag=' + tag,
+			         	dataType: "text",
+			         	data: $("form").serialize(),
+			         	success: function(msg){
+			         		if ("OK" == msg) {
+			          			datatable.DataTable().ajax.reload(); ;
+			         		}
+			         		BootstrapDialog.show({
+					            title: '执行结果',
+					            message: msg
+					        });
+			         	},
+			         	error: function(response){
+			         		BootstrapDialog.show({
+					            title: '错误提示',
+					            message: response.responseText
+					        }); 
+			         	}
+					});
+					
+                }
+            }, {
+                label: '取消',
+                cssClass: 'btn-warning',
+                action: function(dialog) {
+                    dialog.close();
+                }
+            }]
+        });
+   	}
+   	
+	function tagRepo(id, tag) {
+   		var repo = window.location.href.split("repo=")[1];
+   		BootstrapDialog.show({
+            title: '请为' + repo + ':' + tag + '<br>新增一个Tag',
+            message: $('<input id="newTag" name="newTag" type="text" class="form-control" placeholder="registry V2目前没有相关API">'),
+            buttons: [{
+                label: '确定',
+                cssClass: 'btn-primary',
+                hotkey: 13, // Enter.
+                action: function(dialog) {
+                    dialog.close();
+                    $.ajax({
+						type: "GET",
+			         	url: '/dockerwebconsole/RegistryServlet?action=tagTheImage&name='+ repo + '&tag=' + $("#newTag").val() + '&id=' + id,
+			         	//url: 'http://10.121.0.76:5000/v1/repositories/library/jms/tags/ccc',
+			         	dataType: "text",
+			         	//contentType: "application/text",
+			         	success: function(msg){
+			         		if ("OK" == msg) {
+			          			datatable.DataTable().ajax.reload();
+			         		}
+			         		BootstrapDialog.show({
+					            title: '执行结果',
+					            message: msg
+					        });
+			         	},
+			         	error: function(response){
+			         		BootstrapDialog.show({
+					            title: '错误提示',
+					            message: response.responseText
+					        }); 
+			         	}
+					});
+                }
+            },{
+                label: '取消',
+                cssClass: 'btn-primary',
+                action: function(dialog) {
+                    dialog.close();
+                }
+            }]
+        });
+   	}
+	function allselect(){
+		if($('#all-select').text().trim()=="全选"){
+			datatable.find('tr').addClass('selected');	
+			$("#all-select").text("全不选");
+		}else{
+			datatable.find('tr').removeClass('selected');
+			$("#all-select").text("全选");
+		}
+		if(datatable.DataTable().rows('.selected').data().length>0){
+         	$('#remove-container').removeClass("disabled");
+         }else{
+         	$('#remove-container').addClass("disabled");
+         }
+	}
+	function deleteRows() {
+    	  BootstrapDialog.show({
+    		type: BootstrapDialog.TYPE_WARNING, 
+    		title: '提示',
+            message: '您确定要删除' + datatable.DataTable().rows('.selected').data().length + '个镜像吗？',
+            buttons: [{
+	                label: '确定',
+					cssClass: 'btn-warning',
+	                action: function(dialogItself){
+	                	var repo = window.location.href.split("repo=")[1];
+	                	var rows = datatable.DataTable().rows('.selected').data();
+	                	var nameAndTags = "";
+	                	$(rows).each(function(){
+	                		if ("" !=nameAndTags) {
+	                			nameAndTags += "~~~" + repo + '/tags/' + this.tag;
+	                		} else {
+	                			nameAndTags = repo + '/tags/' + this.tag;
+	                		}
+	                	});
+	                	$.ajax({
+    						type: "GET",
+    			         	url: '/dockerwebconsole/RegistryServlet?action=deleteRegistryImageTags&nameAndTags='+ nameAndTags,
+    			         	dataType: "text",
+    			         	data: $("form").serialize(),
+    			         	success: function(msgs){
+    			         		var msgStrings = msgs.split("~~~");
+    			         		var message = "";
+    			         		for (var i =0; i < msgStrings.length; i++) {
+    			         			var msgInfos = msgStrings[i].split("^^");
+	    			         		if (msgInfos[1].indexOf('OK')!=-1) {
+	    			         			message += msgInfos[0] + "删除成功!<br>";
+	    			         		} else {
+	    			         			message += msgInfos[0] + "删除失败!" + msgInfos[1] + "<br>";
+	    			         		}
+    			         		}
+    			         		alertResult("执行结果", message);
+    			         	},
+    			         	error: function(response){
+    			         		BootstrapDialog.show({
+    					            title: '执行结果',
+    					            message: response.responseText
+    					        }); 
+    			         	}
+    					});
+	                    dialogItself.close();
+	                }
+            	},  {
+	                label: '取消',
+	                cssClass: 'btn-warning',
+	                action: function(dialogItself){
+	                    dialogItself.close();
+                	}
+            	}]
+        });
+	}
+</script>
+</head>
+
+<body>
+	<div id="nav">
+	</div>
+	<div class="container">
+		<div>
+			<h1>镜像</h1>
+		</div>
+	</div>
+
+	<div class="container">
+		<table id="example" class="display" cellspacing="0" width="100%">
+			<thead>
+				<tr>
+				<th colspan="3" style="text-align:right;">
+					<div><!--
+					<button id="remove-container" type="button" class="btn btn-danger disabled" onclick="deleteRows();">
+			        删除所选
+			        </button>
+			        <button id="all-select" type="button" class="btn btn-danger" onclick="allselect();">
+			         全选
+			         </button>-->
+			         </div>
+				</th>
+				</tr>
+				<tr>
+					<th>镜像名称</th>
+					<th>标签</th>
+					<th>操作</th>
+				</tr>
+			</thead>
+			
+			<tfoot>
+				<tr>
+					<th>镜像名称</th>
+					<th>标签</th>
+					<th>操作</th>
+				</tr>
+			</tfoot>
+		</table>
+	</div>
+</body>
+</html>
